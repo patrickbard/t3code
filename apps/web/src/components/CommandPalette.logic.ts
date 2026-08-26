@@ -4,6 +4,7 @@ import {
   type EnvironmentId,
   type FilesystemBrowseEntry,
   type KeybindingCommand,
+  type SourceControlRepositoryInfo,
   THREAD_JUMP_KEYBINDING_COMMANDS,
 } from "@t3tools/contracts";
 import { filterFilesystemBrowseEntries } from "@t3tools/client-runtime/state/filesystem";
@@ -19,6 +20,45 @@ import { type Project, type SidebarThreadSummary, type Thread } from "../types";
 export const RECENT_THREAD_LIMIT = 12;
 export const ITEM_ICON_CLASS = "size-4 text-icon-muted";
 export const ADDON_ICON_CLASS = "size-4";
+export const GITHUB_REPOSITORY_SUGGESTION_DEBOUNCE_MS = 300;
+export const GITHUB_REPOSITORY_SUGGESTION_LIMIT = 30;
+
+/** A slash marks the owner portion complete, so partial owners never trigger network reads. */
+export function githubOwnerForRepositorySuggestions(query: string): string | null {
+  const match = /^([A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?)\/[^/]*$/u.exec(query.trim());
+  return match?.[1] ?? null;
+}
+
+export function filterGitHubRepositorySuggestions(input: {
+  readonly repositories: ReadonlyArray<SourceControlRepositoryInfo>;
+  readonly query: string;
+  readonly owner: string | null;
+}): ReadonlyArray<SourceControlRepositoryInfo> {
+  const normalizedQuery = input.query.trim().toLowerCase();
+  const repositoryQuery =
+    input.owner === null
+      ? normalizedQuery
+      : normalizedQuery.slice(normalizedQuery.indexOf("/") + 1);
+
+  return input.repositories
+    .filter((repository) => {
+      const name = repository.nameWithOwner.split("/").at(-1)?.toLowerCase() ?? "";
+      return input.owner === null
+        ? repository.nameWithOwner.toLowerCase().includes(repositoryQuery)
+        : name.includes(repositoryQuery);
+    })
+    .map((repository, index) => ({ repository, index }))
+    .toSorted((left, right) => {
+      const leftName = left.repository.nameWithOwner.split("/").at(-1)?.toLowerCase() ?? "";
+      const rightName = right.repository.nameWithOwner.split("/").at(-1)?.toLowerCase() ?? "";
+      const leftStartsWith = leftName.startsWith(repositoryQuery);
+      const rightStartsWith = rightName.startsWith(repositoryQuery);
+      if (leftStartsWith !== rightStartsWith) return leftStartsWith ? -1 : 1;
+      return left.index - right.index;
+    })
+    .map(({ repository }) => repository)
+    .slice(0, GITHUB_REPOSITORY_SUGGESTION_LIMIT);
+}
 
 /** A PR's relations include archived threads that normal palette search omits. */
 export function buildLinkedThreadActionItems(

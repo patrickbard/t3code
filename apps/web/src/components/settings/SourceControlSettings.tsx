@@ -9,16 +9,22 @@ import type {
   SourceControlDiscoveryResult,
   SourceControlProviderAuth,
   SourceControlProviderDiscoveryItem,
+  SourceControlRepositorySort,
   VcsDriverKind,
   VcsDiscoveryItem,
 } from "@t3tools/contracts";
+import { DEFAULT_SOURCE_CONTROL_REPOSITORY_SORT } from "@t3tools/contracts";
 import {
   getBackgroundActivityBaseProfile,
   getBackgroundActivityPresetSettings,
   resolveServerBackgroundActivitySettings,
 } from "@t3tools/shared/backgroundActivitySettings";
 
-import { useScopedSettings, useUpdateScopedSettings } from "./useScopedSettings";
+import {
+  useScopedSettings,
+  useScopedSettingsMixed,
+  useUpdateScopedSettings,
+} from "./useScopedSettings";
 import { useSettingsScope } from "./SettingsScopeContext";
 import { ProjectDefaultsSettings } from "./ProjectDefaultsSettings";
 import { cn } from "../../lib/utils";
@@ -36,6 +42,7 @@ import {
   EmptyTitle,
 } from "../ui/empty";
 import { Skeleton } from "../ui/skeleton";
+import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import {
   NumberField,
   NumberFieldDecrement,
@@ -63,6 +70,7 @@ import {
   PolicyTooltip,
   SettingResetButton,
   SettingsPageContainer,
+  SettingsRow,
   SettingsSearchTarget,
   SettingsSection,
   useSettingsSearchTargetId,
@@ -90,6 +98,11 @@ const VCS_ICONS: Partial<Record<VcsDriverKind, Icon>> = {
 
 const SOURCE_CONTROL_SKELETON_ROWS = ["primary", "secondary"] as const;
 const GIT_FETCH_INTERVAL_STEP_SECONDS = 5;
+const REPOSITORY_SORT_LABELS = {
+  most_recent: "Most recent",
+  most_starred: "Most starred",
+  alphabetical: "Alphabetical",
+} as const satisfies Record<SourceControlRepositorySort, string>;
 type BackgroundActivityOverridePatch = Partial<{
   [K in keyof BackgroundActivitySettings["overrides"]]:
     | BackgroundActivitySettings["overrides"][K]
@@ -430,6 +443,64 @@ function GitFetchIntervalSettings() {
   );
 }
 
+function RepositoryListingSettings() {
+  const sort = useScopedSettings((settings) => settings.sourceControlRepositorySort);
+  const sortMixed = useScopedSettingsMixed(["sourceControlRepositorySort"]);
+  const updateSettings = useUpdateScopedSettings();
+
+  return (
+    <SettingsSection title="Repository listing">
+      <SettingsRow
+        serverScoped
+        settingKeys={["sourceControlRepositorySort"]}
+        {...searchableSetting("repository-list-sort")}
+        description="Controls how GitHub repository suggestions are ordered when adding a project."
+        resetAction={
+          sort !== DEFAULT_SOURCE_CONTROL_REPOSITORY_SORT ? (
+            <SettingResetButton
+              label="repository listing sort"
+              onClick={() =>
+                updateSettings({
+                  sourceControlRepositorySort: DEFAULT_SOURCE_CONTROL_REPOSITORY_SORT,
+                })
+              }
+            />
+          ) : null
+        }
+        control={
+          <Select
+            value={sortMixed ? null : sort}
+            onValueChange={(value) => {
+              if (value === "most_recent" || value === "most_starred" || value === "alphabetical") {
+                updateSettings({ sourceControlRepositorySort: value });
+              }
+            }}
+          >
+            <SelectTrigger
+              size="sm"
+              className="w-full sm:w-40"
+              aria-label="Repository listing sort"
+            >
+              <SelectValue>
+                {(value: SourceControlRepositorySort | null) =>
+                  value === null ? "Mixed" : REPOSITORY_SORT_LABELS[value]
+                }
+              </SelectValue>
+            </SelectTrigger>
+            <SelectPopup align="end" alignItemWithTrigger={false}>
+              {Object.entries(REPOSITORY_SORT_LABELS).map(([value, label]) => (
+                <SelectItem hideIndicator key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectPopup>
+          </Select>
+        }
+      />
+    </SettingsSection>
+  );
+}
+
 function SourceControlSectionSkeleton({
   title,
   headerAction,
@@ -617,6 +688,7 @@ export function SourceControlSettingsPanel() {
         />
       )}
 
+      <RepositoryListingSettings />
       <SourceControlWritingSettingsSection />
     </SettingsPageContainer>
   );

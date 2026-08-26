@@ -38,6 +38,10 @@ import {
   type ProviderDriverKind,
 } from "./providerInstance.ts";
 import { PullRequestMergeMethod } from "./pullRequest.ts";
+import {
+  DEFAULT_SOURCE_CONTROL_REPOSITORY_SORT,
+  SourceControlRepositorySort,
+} from "./sourceControl.ts";
 
 // ── Client Settings (local-only) ───────────────────────────────
 
@@ -1389,6 +1393,9 @@ export const ServerSettings = Schema.Struct({
   sourceControlWriterModelSelection: Schema.NullOr(ModelSelection).pipe(
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
+  sourceControlRepositorySort: SourceControlRepositorySort.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_SOURCE_CONTROL_REPOSITORY_SORT)),
+  ),
   /**
    * The merge method pull requests start with; `null` reuses the method
    * last chosen on this device. Server-side so a project can override it
@@ -1698,6 +1705,7 @@ export const ServerSettingsPatch = Schema.Struct({
     }),
   ),
   sourceControlWriterModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
+  sourceControlRepositorySort: Schema.optionalKey(SourceControlRepositorySort),
   pullRequestMergeMethod: Schema.optionalKey(Schema.NullOr(PullRequestMergeMethod)),
   observability: Schema.optionalKey(
     Schema.Struct({

@@ -10,13 +10,68 @@ import {
   buildThreadActionItems,
   buildLinkedThreadActionItems,
   enumerateCommandPaletteItems,
+  filterGitHubRepositorySuggestions,
   filterPinnedBrowseEntries,
   filterCommandPaletteGroups,
   findHighlightedCommandPaletteItem,
+  githubOwnerForRepositorySuggestions,
   reduceCommandPaletteUiState,
   type CommandPaletteActionItem,
   type CommandPaletteGroup,
 } from "./CommandPalette.logic";
+
+describe("GitHub repository suggestions", () => {
+  const repositories = [
+    {
+      provider: "github" as const,
+      nameWithOwner: "octocat/hello-world",
+      url: "https://github.com/octocat/hello-world",
+      sshUrl: "git@github.com:octocat/hello-world.git",
+    },
+    {
+      provider: "github" as const,
+      nameWithOwner: "octocat/world-builder",
+      url: "https://github.com/octocat/world-builder",
+      sshUrl: "git@github.com:octocat/world-builder.git",
+    },
+  ];
+
+  it("waits for a complete owner prefix", () => {
+    expect(githubOwnerForRepositorySuggestions("octo")).toBeNull();
+    expect(githubOwnerForRepositorySuggestions("octocat/")).toBe("octocat");
+    expect(githubOwnerForRepositorySuggestions("octocat/hello")).toBe("octocat");
+    expect(githubOwnerForRepositorySuggestions("octocat/hello/extra")).toBeNull();
+    expect(githubOwnerForRepositorySuggestions("-octocat/")).toBeNull();
+  });
+
+  it("filters owner results by repository name and prioritizes prefixes", () => {
+    expect(
+      filterGitHubRepositorySuggestions({
+        repositories,
+        query: "octocat/world",
+        owner: "octocat",
+      }).map((repository) => repository.nameWithOwner),
+    ).toEqual(["octocat/world-builder", "octocat/hello-world"]);
+  });
+
+  it("searches the full name for the logged-in user source", () => {
+    expect(
+      filterGitHubRepositorySuggestions({ repositories, query: "hello", owner: null }).map(
+        (repository) => repository.nameWithOwner,
+      ),
+    ).toEqual(["octocat/hello-world"]);
+  });
+
+  it("preserves the configured repository order when the search relevance is equal", () => {
+    expect(
+      filterGitHubRepositorySuggestions({
+        repositories: repositories.toReversed(),
+        query: "",
+        owner: null,
+      }).map((repository) => repository.nameWithOwner),
+    ).toEqual(["octocat/world-builder", "octocat/hello-world"]);
+  });
+});
 
 describe("linked pull request thread navigation", () => {
   it("keeps archived relations searchable and routes them through the PR environment", async () => {

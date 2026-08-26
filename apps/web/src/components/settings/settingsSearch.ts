@@ -874,6 +874,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     ],
   },
   {
+    id: "repository-list-sort",
+    title: "Repository list sort",
+    to: "/settings/source-control",
+    searchTerms: ["github repository suggestions clone add project order recent starred alphabetical"],
+  },
+  {
     id: "remote-environments",
     title: "Environments",
     to: "/settings/connections",

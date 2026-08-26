@@ -29,7 +29,7 @@ export type AddProjectRemoteProviderKind = Extract<
   SourceControlProviderKind,
   "github" | "gitlab" | "forgejo" | "bitbucket" | "azure-devops"
 >;
-export type AddProjectRemoteSource = AddProjectRemoteProviderKind | "url";
+export type AddProjectRemoteSource = AddProjectRemoteProviderKind | "github-user" | "url";
 
 export function canCreateProjectInEnvironment(
   connectionPhase: EnvironmentConnectionPhase | null | undefined,
@@ -72,6 +72,7 @@ export type AddProjectCloneFlow =
 
 const ADD_PROJECT_REMOTE_SOURCES: ReadonlyArray<AddProjectRemoteSource> = [
   "url",
+  "github-user",
   "github",
   "gitlab",
   "forgejo",
@@ -91,6 +92,8 @@ export function addProjectRemoteSourceLabel(source: AddProjectRemoteSource): str
   switch (source) {
     case "github":
       return "GitHub";
+    case "github-user":
+      return "My GitHub";
     case "forgejo":
       return "Forgejo / Gitea";
     case "gitlab":
@@ -109,6 +112,8 @@ export function addProjectRemoteSourcePathHint(source: AddProjectRemoteSource): 
     case "forgejo":
     case "github":
       return "owner/repo";
+    case "github-user":
+      return "repository name";
     case "gitlab":
       return "group/project";
     case "bitbucket":
@@ -123,7 +128,7 @@ export function addProjectRemoteSourcePathHint(source: AddProjectRemoteSource): 
 export function addProjectRemoteSourceProvider(
   source: AddProjectRemoteSource,
 ): AddProjectRemoteProviderKind | null {
-  return source === "url" ? null : source;
+  return source === "url" ? null : source === "github-user" ? "github" : source;
 }
 
 const GITHUB_REPOSITORY_SHORTHAND =
@@ -173,6 +178,7 @@ export function buildAddProjectRemoteSourceReadiness(
   } as const;
   const readiness: AddProjectRemoteSourceReadiness = {
     url: { ready: true, hint: null },
+    "github-user": unavailable,
     github: unavailable,
     gitlab: unavailable,
     forgejo: unavailable,

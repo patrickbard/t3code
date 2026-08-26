@@ -44,13 +44,14 @@ const baseInput = {
 
 const captureProcessResult = (
   result: Effect.Effect<ProcessRunner.ProcessRunOutput, ProcessRunner.ProcessRunError>,
+  input: VcsProcess.VcsProcessInput = baseInput,
 ) =>
   VcsProcess.make.pipe(
     Effect.provideService(
       ProcessRunner.ProcessRunner,
       ProcessRunner.ProcessRunner.of({ run: () => result }),
     ),
-    Effect.flatMap((service) => service.run(baseInput)),
+    Effect.flatMap((service) => service.run(input)),
     Effect.flip,
   );
 
@@ -412,6 +413,31 @@ describe("VcsProcess.run", () => {
       });
       expect(error.message).not.toContain(providerStderr);
     }).pipe(provideLive),
+  );
+
+  it.effect("classifies missing GitHub owners as not found", () =>
+    Effect.gen(function* () {
+      const providerStderr = "GraphQL: Could not resolve to a User with the login of 'octoca'.";
+      const error = yield* captureProcessResult(
+        Effect.succeed({
+          stdout: "",
+          stderr: providerStderr,
+          code: ChildProcessSpawner.ExitCode(1),
+          timedOut: false,
+          stdoutTruncated: false,
+          stderrTruncated: false,
+          stdoutInvalidUtf8: false,
+          stderrInvalidUtf8: false,
+        }),
+        { ...baseInput, command: "gh", args: ["repo", "list", "octoca"] },
+      );
+
+      expect(error).toMatchObject({
+        detail: "Pull request not found.",
+        failureKind: "not-found",
+      });
+      expect(error.message).not.toContain(providerStderr);
+    }),
   );
 
   it.effect("retains spawn causes without exposing process arguments in the error message", () =>

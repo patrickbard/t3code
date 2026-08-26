@@ -337,6 +337,7 @@ import {
   SourceControlPublishRepositoryResult,
   SourceControlRepositoryError,
   SourceControlRepositoryInfo,
+  SourceControlRepositoryListInput,
   SourceControlRepositoryLookupInput,
 } from "./sourceControl.ts";
 import { VcsError } from "./vcs.ts";
@@ -521,6 +522,7 @@ export const WS_METHODS = {
   pullRequestsSetLabels: "pullRequests.setLabels",
 
   // Source control methods
+  sourceControlListGitHubRepositories: "sourceControl.listGitHubRepositories",
   sourceControlLookupRepository: "sourceControl.lookupRepository",
   sourceControlCloneRepository: "sourceControl.cloneRepository",
   sourceControlPublishRepository: "sourceControl.publishRepository",
@@ -1082,6 +1084,15 @@ const WsPullRequestsSetLabelsRpc = Rpc.make(WS_METHODS.pullRequestsSetLabels, {
   success: Schema.Void,
   error: PullRequestRpcError,
 });
+
+const WsSourceControlListGitHubRepositoriesRpc = Rpc.make(
+  WS_METHODS.sourceControlListGitHubRepositories,
+  {
+    payload: SourceControlRepositoryListInput,
+    success: Schema.Array(SourceControlRepositoryInfo),
+    error: Schema.Union([SourceControlRepositoryError, EnvironmentAuthorizationError]),
+  },
+);
 
 const WsSourceControlLookupRepositoryRpc = Rpc.make(WS_METHODS.sourceControlLookupRepository, {
   payload: SourceControlRepositoryLookupInput,
@@ -1833,6 +1844,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsPullRequestsRequestReviewersRpc,
   WsPullRequestsLabelCandidatesRpc,
   WsPullRequestsSetLabelsRpc,
+  WsSourceControlListGitHubRepositoriesRpc,
   WsSourceControlLookupRepositoryRpc,
   WsSourceControlCloneRepositoryRpc,
   WsSourceControlPublishRepositoryRpc,

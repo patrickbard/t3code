@@ -119,6 +119,42 @@ it.effect("looks up repositories through the requested provider without search",
   }).pipe(Effect.provide(layer({ provider })));
 });
 
+it.effect("lists GitHub repositories for an owner or the logged-in user", () => {
+  const calls: Array<{
+    cwd: string;
+    owner?: string;
+    limit?: number;
+    sort: "most_recent" | "most_starred" | "alphabetical";
+  }> = [];
+  const provider = makeProvider({
+    listRepositories: (input) =>
+      Effect.sync(() => {
+        calls.push(input);
+        return [CLONE_URLS];
+      }),
+  });
+
+  return Effect.gen(function* () {
+    const service = yield* SourceControlRepositoryService.SourceControlRepositoryService;
+    const owned = yield* service.listGitHubRepositories({
+      owner: "octocat",
+      cwd: "/workspace",
+      sort: "most_starred",
+    });
+    const viewer = yield* service.listGitHubRepositories({
+      cwd: "/workspace",
+      sort: "alphabetical",
+    });
+
+    assert.deepStrictEqual(owned, [{ provider: "github", ...CLONE_URLS }]);
+    assert.deepStrictEqual(viewer, [{ provider: "github", ...CLONE_URLS }]);
+    assert.deepStrictEqual(calls, [
+      { cwd: "/workspace", owner: "octocat", limit: 100, sort: "most_starred" },
+      { cwd: "/workspace", limit: 100, sort: "alphabetical" },
+    ]);
+  }).pipe(Effect.provide(layer({ provider })));
+});
+
 it.effect("preserves provider failures without deriving the repository message from them", () => {
   const providerCause = new SourceControlProviderError({
     provider: "github",

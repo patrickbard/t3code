@@ -956,6 +956,19 @@ describe("ServerSettings.sourceControlWritingStyle", () => {
   });
 });
 
+describe("ServerSettings.sourceControlRepositorySort", () => {
+  it("defaults legacy configs to most recent", () => {
+    expect(decodeServerSettings({}).sourceControlRepositorySort).toBe("most_recent");
+  });
+
+  it("accepts repository sort updates", () => {
+    expect(
+      decodeServerSettingsPatch({ sourceControlRepositorySort: "most_starred" })
+        .sourceControlRepositorySort,
+    ).toBe("most_starred");
+  });
+});
+
 describe("ServerSettingsPatch.providerInstances", () => {
   it("treats providerInstances as an optional whole-map replacement", () => {
     const patch = decodeServerSettingsPatch({});

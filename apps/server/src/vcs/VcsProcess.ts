@@ -91,6 +91,8 @@ const classifyNonZeroExit = (command: string, stderr: string): VcsProcessExitFai
   if (
     (command === "gh" &&
       (normalized.includes("could not resolve to a pullrequest") ||
+        normalized.includes("could not resolve to a user") ||
+        normalized.includes("could not resolve to an organization") ||
         normalized.includes("repository.pullrequest") ||
         normalized.includes("no pull requests found for branch") ||
         normalized.includes("pull request not found"))) ||

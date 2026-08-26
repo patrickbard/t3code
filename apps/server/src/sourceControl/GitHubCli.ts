@@ -16,6 +16,7 @@ import * as Schema from "effect/Schema";
 
 import {
   TrimmedNonEmptyString,
+  type SourceControlRepositorySort,
   type SourceControlRepositoryVisibility,
   type VcsError,
 } from "@t3tools/contracts";
@@ -207,6 +208,19 @@ export class GitHubRepositoryDecodeError extends Schema.TaggedError<GitHubReposi
   }
 }
 
+export class GitHubRepositoryListDecodeError extends Schema.TaggedError<GitHubRepositoryListDecodeError>()(
+  "GitHubRepositoryListDecodeError",
+  gitHubCliDecodeFields,
+) {
+  get detail(): string {
+    return "GitHub CLI returned invalid repository list JSON.";
+  }
+
+  override get message(): string {
+    return `GitHub CLI failed in listRepositories: ${this.detail}`;
+  }
+}
+
 export const GitHubCliError = Schema.Union([
   GitHubCliUnavailableError,
   GitHubCliAuthenticationError,
@@ -217,6 +231,7 @@ export const GitHubCliError = Schema.Union([
   GitHubChangeRequestListDecodeError,
   GitHubPullRequestDecodeError,
   GitHubRepositoryDecodeError,
+  GitHubRepositoryListDecodeError,
 ]);
 export type GitHubCliError = typeof GitHubCliError.Type;
 
@@ -332,6 +347,13 @@ export class GitHubCli extends Context.Service<
       readonly repository: string;
     }) => Effect.Effect<GitHubRepositoryCloneUrls, GitHubCliError>;
 
+    readonly listRepositories: (input: {
+      readonly cwd: string;
+      readonly owner?: string;
+      readonly limit?: number;
+      readonly sort: SourceControlRepositorySort;
+    }) => Effect.Effect<ReadonlyArray<GitHubRepositoryCloneUrls>, GitHubCliError>;
+
     readonly createRepository: (input: {
       readonly cwd: string;
       readonly repository: string;
@@ -364,9 +386,47 @@ const RawGitHubRepositoryCloneUrlsSchema = Schema.Struct({
   url: TrimmedNonEmptyString,
   sshUrl: TrimmedNonEmptyString,
 });
+const RawGitHubRepositoryListItemSchema = Schema.Struct({
+  ...RawGitHubRepositoryCloneUrlsSchema.fields,
+  updatedAt: TrimmedNonEmptyString,
+  stargazerCount: Schema.Number,
+});
 const decodeRawGitHubRepositoryCloneUrls = Schema.decodeEffect(
   Schema.fromJsonString(RawGitHubRepositoryCloneUrlsSchema),
 );
+const decodeRawGitHubRepositoryCloneUrlsList = Schema.decodeEffect(
+  Schema.fromJsonString(Schema.Array(RawGitHubRepositoryListItemSchema)),
+);
+
+type RawGitHubRepositoryListItem = Schema.Schema.Type<typeof RawGitHubRepositoryListItemSchema>;
+
+function compareRepositoryNames(
+  left: RawGitHubRepositoryListItem,
+  right: RawGitHubRepositoryListItem,
+): number {
+  return left.nameWithOwner.localeCompare(right.nameWithOwner, undefined, {
+    sensitivity: "base",
+  });
+}
+
+function sortRepositories(
+  repositories: ReadonlyArray<RawGitHubRepositoryListItem>,
+  sort: SourceControlRepositorySort,
+): ReadonlyArray<RawGitHubRepositoryListItem> {
+  return repositories.toSorted((left, right) => {
+    if (sort === "most_recent") {
+      return right.updatedAt.localeCompare(left.updatedAt) || compareRepositoryNames(left, right);
+    }
+    if (sort === "most_starred") {
+      return (
+        right.stargazerCount - left.stargazerCount ||
+        right.updatedAt.localeCompare(left.updatedAt) ||
+        compareRepositoryNames(left, right)
+      );
+    }
+    return compareRepositoryNames(left, right);
+  });
+}
 
 function normalizeRepositoryCloneUrls(
   raw: Schema.Schema.Type<typeof RawGitHubRepositoryCloneUrlsSchema>,
@@ -1035,6 +1095,39 @@ export const make = Effect.gen(function* () {
           ),
         ),
         Effect.map(normalizeRepositoryCloneUrls),
+      ),
+    listRepositories: (input) =>
+      execute({
+        cwd: input.cwd,
+        args: [
+          "repo",
+          "list",
+          ...(input.owner ? [input.owner] : []),
+          "--limit",
+          String(input.limit ?? 100),
+          "--json",
+          "nameWithOwner,url,sshUrl,updatedAt,stargazerCount",
+        ],
+      }).pipe(
+        Effect.map((result) => result.stdout.trim()),
+        Effect.flatMap((raw) =>
+          decodeRawGitHubRepositoryCloneUrlsList(raw).pipe(
+            Effect.mapError(
+              (cause) =>
+                new GitHubRepositoryListDecodeError({
+                  command: "gh",
+                  cwd: input.cwd,
+                  cause,
+                }),
+            ),
+          ),
+        ),
+        Effect.map((repositories) =>
+          sortRepositories(repositories, input.sort).map(normalizeRepositoryCloneUrls),
+        ),
+        // Partial owner input is expected while typing. GitHub reports a missing
+        // user or organisation as not-found, which is an empty suggestion set.
+        Effect.catchTag("GitHubPullRequestNotFoundError", () => Effect.succeed([])),
       ),
     createRepository: (input) =>
       execute({

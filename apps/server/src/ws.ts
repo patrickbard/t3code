@@ -2940,6 +2940,14 @@ const layerWsRpc = (
               "rpc.aggregate": "source-control",
             },
           ),
+        [WS_METHODS.sourceControlListGitHubRepositories]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.sourceControlListGitHubRepositories,
+            sourceControlRepositories.listGitHubRepositories(input),
+            {
+              "rpc.aggregate": "source-control",
+            },
+          ),
         [WS_METHODS.sourceControlCloneRepository]: (input) =>
           observeRpcEffect(
             WS_METHODS.sourceControlCloneRepository,

@@ -819,6 +819,146 @@ describe("GitHubCli.layer", () => {
     }).pipe(Effect.provide(layer)),
   );
 
+  it.effect("lists repositories for an owner and the logged-in user", () =>
+    Effect.gen(function* () {
+      const output = processOutput(
+        // @effect-diagnostics-next-line preferSchemaOverJson:off
+        JSON.stringify([
+          {
+            nameWithOwner: "octocat/private-repo",
+            url: "https://github.com/octocat/private-repo",
+            sshUrl: "git@github.com:octocat/private-repo.git",
+            updatedAt: "2026-08-20T12:00:00Z",
+            stargazerCount: 10,
+          },
+        ]),
+      );
+      mockRun.mockReturnValueOnce(Effect.succeed(output));
+      mockRun.mockReturnValueOnce(Effect.succeed(output));
+
+      const gh = yield* GitHubCli.GitHubCli;
+      const ownerRepositories = yield* gh.listRepositories({
+        cwd: "/repo",
+        owner: "octocat",
+        sort: "most_recent",
+      });
+      const viewerRepositories = yield* gh.listRepositories({
+        cwd: "/repo",
+        sort: "most_recent",
+      });
+
+      assert.deepStrictEqual(ownerRepositories, viewerRepositories);
+      expect(mockRun).toHaveBeenNthCalledWith(1, {
+        operation: "GitHubCli.execute",
+        command: "gh",
+        args: [
+          "repo",
+          "list",
+          "octocat",
+          "--limit",
+          "100",
+          "--json",
+          "nameWithOwner,url,sshUrl,updatedAt,stargazerCount",
+        ],
+        cwd: "/repo",
+        timeoutMs: 30_000,
+      });
+      expect(mockRun).toHaveBeenNthCalledWith(2, {
+        operation: "GitHubCli.execute",
+        command: "gh",
+        args: [
+          "repo",
+          "list",
+          "--limit",
+          "100",
+          "--json",
+          "nameWithOwner,url,sshUrl,updatedAt,stargazerCount",
+        ],
+        cwd: "/repo",
+        timeoutMs: 30_000,
+      });
+    }).pipe(Effect.provide(layer)),
+  );
+
+  it.effect("sorts repository listings by recency, stars, or name", () =>
+    Effect.gen(function* () {
+      const output = processOutput(
+        // @effect-diagnostics-next-line preferSchemaOverJson:off
+        JSON.stringify([
+          {
+            nameWithOwner: "octocat/zebra",
+            url: "https://github.com/octocat/zebra",
+            sshUrl: "git@github.com:octocat/zebra.git",
+            updatedAt: "2026-08-18T12:00:00Z",
+            stargazerCount: 20,
+          },
+          {
+            nameWithOwner: "octocat/alpha",
+            url: "https://github.com/octocat/alpha",
+            sshUrl: "git@github.com:octocat/alpha.git",
+            updatedAt: "2026-08-20T12:00:00Z",
+            stargazerCount: 5,
+          },
+          {
+            nameWithOwner: "octocat/middle",
+            url: "https://github.com/octocat/middle",
+            sshUrl: "git@github.com:octocat/middle.git",
+            updatedAt: "2026-08-19T12:00:00Z",
+            stargazerCount: 50,
+          },
+        ]),
+      );
+      mockRun.mockReturnValue(Effect.succeed(output));
+
+      const gh = yield* GitHubCli.GitHubCli;
+      const recent = yield* gh.listRepositories({ cwd: "/repo", sort: "most_recent" });
+      const starred = yield* gh.listRepositories({ cwd: "/repo", sort: "most_starred" });
+      const alphabetical = yield* gh.listRepositories({ cwd: "/repo", sort: "alphabetical" });
+
+      expect(recent.map((repository) => repository.nameWithOwner)).toEqual([
+        "octocat/alpha",
+        "octocat/middle",
+        "octocat/zebra",
+      ]);
+      expect(starred.map((repository) => repository.nameWithOwner)).toEqual([
+        "octocat/middle",
+        "octocat/zebra",
+        "octocat/alpha",
+      ]);
+      expect(alphabetical.map((repository) => repository.nameWithOwner)).toEqual([
+        "octocat/alpha",
+        "octocat/middle",
+        "octocat/zebra",
+      ]);
+    }).pipe(Effect.provide(layer)),
+  );
+
+  it.effect("treats an owner that does not exist as no repository suggestions", () =>
+    Effect.gen(function* () {
+      mockRun.mockReturnValueOnce(
+        Effect.fail(
+          new VcsProcessExitError({
+            operation: "GitHubCli.execute",
+            command: "gh repo list",
+            cwd: "/repo",
+            exitCode: 1,
+            failureKind: "not-found",
+            detail: "Could not resolve to a User with the login of 'octoca'.",
+          }),
+        ),
+      );
+
+      const gh = yield* GitHubCli.GitHubCli;
+      const repositories = yield* gh.listRepositories({
+        cwd: "/repo",
+        owner: "octoca",
+        sort: "most_recent",
+      });
+
+      assert.deepStrictEqual(repositories, []);
+    }).pipe(Effect.provide(layer)),
+  );
+
   it.effect("creates repositories and parses clone URLs from create output", () =>
     Effect.gen(function* () {
       mockRun.mockReturnValueOnce(

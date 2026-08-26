@@ -16,6 +16,7 @@ import {
   type SourceControlPublishRepositoryResult,
   type SourceControlRepositoryCloneUrls,
   type SourceControlRepositoryInfo,
+  type SourceControlRepositoryListInput,
   type SourceControlRepositoryLookupInput,
 } from "@t3tools/contracts";
 
@@ -32,6 +33,9 @@ const isSourceControlRepositoryError = Schema.is(SourceControlRepositoryError);
 export class SourceControlRepositoryService extends Context.Service<
   SourceControlRepositoryService,
   {
+    readonly listGitHubRepositories: (
+      input: SourceControlRepositoryListInput,
+    ) => Effect.Effect<ReadonlyArray<SourceControlRepositoryInfo>, SourceControlRepositoryError>;
     readonly lookupRepository: (
       input: SourceControlRepositoryLookupInput,
     ) => Effect.Effect<SourceControlRepositoryInfo, SourceControlRepositoryError>;
@@ -192,6 +196,26 @@ export const make = Effect.gen(function* () {
     });
     return toRepositoryInfo(providerKind, urls);
   });
+
+  const listGitHubRepositories = Effect.fn("SourceControlRepositoryService.listGitHubRepositories")(
+    function* (input: SourceControlRepositoryListInput) {
+      const provider = yield* providers.get("github");
+      if (!provider.listRepositories) {
+        return yield* new SourceControlRepositoryError({
+          operation: "listGitHubRepositories",
+          provider: "github",
+          detail: "This GitHub integration cannot list repositories.",
+        });
+      }
+      const repositories = yield* provider.listRepositories({
+        cwd: input.cwd ?? config.cwd,
+        ...(input.owner ? { owner: input.owner.trim() } : {}),
+        limit: 100,
+        sort: input.sort,
+      });
+      return repositories.map((repository) => toRepositoryInfo("github", repository));
+    },
+  );
 
   const normalizeDestinationPath = Effect.fn("SourceControlRepositoryService.normalizeDestination")(
     function* (destinationPath: string) {
@@ -443,6 +467,8 @@ export const make = Effect.gen(function* () {
   );
 
   return SourceControlRepositoryService.of({
+    listGitHubRepositories: (input) =>
+      listGitHubRepositories(input).pipe(mapRepositoryError("listGitHubRepositories", "github")),
     lookupRepository: (input) =>
       lookupRepository(input).pipe(mapRepositoryError("lookupRepository", input.provider)),
     prepareClone: (input) =>

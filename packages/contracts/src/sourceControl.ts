@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import { PositiveInt, TrimmedNonEmptyString } from "./baseSchemas.ts";
 import { VcsDriverKind } from "./vcs.ts";
@@ -51,6 +52,14 @@ export type SourceControlRepositoryCloneUrls = typeof SourceControlRepositoryClo
 export const SourceControlRepositoryVisibility = Schema.Literals(["private", "public"]);
 export type SourceControlRepositoryVisibility = typeof SourceControlRepositoryVisibility.Type;
 
+export const SourceControlRepositorySort = Schema.Literals([
+  "most_recent",
+  "most_starred",
+  "alphabetical",
+]);
+export type SourceControlRepositorySort = typeof SourceControlRepositorySort.Type;
+export const DEFAULT_SOURCE_CONTROL_REPOSITORY_SORT: SourceControlRepositorySort = "most_recent";
+
 export const SourceControlCloneProtocol = Schema.Literals(["auto", "ssh", "https"]);
 export type SourceControlCloneProtocol = typeof SourceControlCloneProtocol.Type;
 
@@ -61,6 +70,15 @@ export const SourceControlRepositoryInfo = Schema.Struct({
   sshUrl: TrimmedNonEmptyString,
 });
 export type SourceControlRepositoryInfo = typeof SourceControlRepositoryInfo.Type;
+
+export const SourceControlRepositoryListInput = Schema.Struct({
+  owner: Schema.optional(TrimmedNonEmptyString),
+  cwd: Schema.optional(TrimmedNonEmptyString),
+  sort: SourceControlRepositorySort.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_SOURCE_CONTROL_REPOSITORY_SORT)),
+  ),
+});
+export type SourceControlRepositoryListInput = typeof SourceControlRepositoryListInput.Type;
 
 export const SourceControlRepositoryLookupInput = Schema.Struct({
   provider: SourceControlProviderKind,

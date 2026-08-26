@@ -95,6 +95,12 @@ clone runs in the background: you can write your first prompt, and sending waits
 are in place. A toast tracks progress and lets you cancel; if the clone fails, retry it from the
 toast or from the banner above the composer.
 
+GitHub repositories are suggested as you type. **My GitHub repositories** lists the repositories
+owned by the account signed in to GitHub CLI, private ones included, and **GitHub repository**
+starts suggesting matches once you finish the `owner/` prefix. Suggestions lead with the most
+recently updated repository; **Settings → Source Control → Repository listing** switches that to
+most starred or alphabetical.
+
 For a local Git repository without a remote, **Publish Repository** creates a hosted repository,
 adds it as `origin`, and pushes your commits. If there are no commits yet, it creates the remote;
 make your first commit before pushing.
